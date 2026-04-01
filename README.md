@@ -11,12 +11,18 @@ A simple cron scheduler built with Node.js and node-cron that executes JavaScrip
 
 ## Usage
 
-Run the scheduler:
+Run the scheduler with all jobs:
 ```bash
 npm start
 ```
 
-This will load all jobs from the `jobs/` directory and schedule them according to their config files.
+Run specific jobs by name (the name is the config file base name without `.config.json`):
+```bash
+npm start hello
+npm start job1 job2
+```
+
+This will load the specified jobs from the `jobs/` directory and schedule them according to their config files. If no job names are provided, all jobs are loaded.
 
 To stop, press `Ctrl+C`.
 
@@ -45,6 +51,29 @@ console.log('Hello from the scheduled job at', new Date().toISOString());
   "script": "hello.js"
 }
 ```
+
+## API
+
+The scheduler also provides an HTTP API for managing jobs.
+
+### Endpoints
+
+- **GET /jobs**: List all loaded jobs with their schedules and scripts.
+- **POST /run/:jobname**: Trigger a specific job to run immediately.
+
+### Examples
+
+List jobs:
+```bash
+curl http://localhost:3000/jobs
+```
+
+Run a job:
+```bash
+curl -X POST http://localhost:3000/run/hello
+```
+
+The API runs on port 3000 by default (configurable via `PORT` environment variable).
 
 ## Cron Expression Syntax
 

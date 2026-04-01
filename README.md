@@ -59,7 +59,10 @@ The scheduler also provides an HTTP API for managing jobs.
 ### Endpoints
 
 - **GET /jobs**: List all loaded jobs with their schedules and scripts.
+- **GET /jobs/:name**: Get details of a specific job, including script content.
 - **POST /run/:jobname**: Trigger a specific job to run immediately.
+- **POST /jobs**: Create a new job (body: {name, schedule, script, scriptContent}).
+- **PUT /jobs/:name**: Update an existing job (body: {schedule, script, scriptContent}).
 
 ### Examples
 
@@ -78,8 +81,10 @@ curl -X POST http://localhost:3000/run/hello
 A simple web-based GUI is available at `http://localhost:3000` (or your configured port). It allows you to:
 - Load and view all jobs
 - Run jobs manually with a click
+- Add new jobs by filling out the form
+- Edit existing jobs by clicking "Edit" and updating the form
 
-Open your browser to the API URL to access the interface.
+The GUI interacts with the API to create, update, and manage jobs dynamically.
 
 Refer to [node-cron documentation](https://www.npmjs.com/package/node-cron) for cron expression syntax.
 

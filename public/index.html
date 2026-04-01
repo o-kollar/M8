@@ -19,9 +19,22 @@
     <h1>M8 Cron Scheduler</h1>
     <button onclick="loadJobs()">Load Jobs</button>
     <ul id="jobs-list"></ul>
+
+    <h2>Configure Job</h2>
+    <form id="job-form">
+        <label>Job Name: <input type="text" id="job-name" required></label><br>
+        <label>Schedule: <input type="text" id="job-schedule" placeholder="* * * * *" required></label><br>
+        <label>Script Filename: <input type="text" id="job-script" placeholder="script.js" required></label><br>
+        <label>Script Content:<br><textarea id="job-script-content" rows="10" cols="50" required></textarea></label><br>
+        <button type="button" onclick="saveJob()">Save Job</button>
+        <button type="button" onclick="clearForm()">Clear</button>
+    </form>
+
     <div id="output"></div>
 
     <script>
+        let editingJobName = null;
+
         async function loadJobs() {
             try {
                 const response = await fetch('/jobs');
@@ -33,6 +46,7 @@
                     li.innerHTML = `
                         <strong>${job.name}</strong> - Schedule: ${job.schedule} - Script: ${job.script}
                         <button class="run-btn" onclick="runJob('${job.name}')">Run Now</button>
+                        <button onclick="editJob('${job.name}')">Edit</button>
                     `;
                     jobsList.appendChild(li);
                 });
@@ -54,6 +68,60 @@
             } catch (error) {
                 log('Error running job: ' + error.message);
             }
+        }
+
+        async function editJob(jobName) {
+            try {
+                const response = await fetch(`/jobs/${jobName}`);
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('job-name').value = data.name;
+                    document.getElementById('job-schedule').value = data.schedule;
+                    document.getElementById('job-script').value = data.script;
+                    document.getElementById('job-script-content').value = data.scriptContent;
+                    editingJobName = jobName;
+                    document.querySelector('#job-form button').textContent = 'Update Job';
+                } else {
+                    log('Error: ' + data.error);
+                }
+            } catch (error) {
+                log('Error loading job: ' + error.message);
+            }
+        }
+
+        async function saveJob() {
+            const name = document.getElementById('job-name').value;
+            const schedule = document.getElementById('job-schedule').value;
+            const script = document.getElementById('job-script').value;
+            const scriptContent = document.getElementById('job-script-content').value;
+
+            const method = editingJobName ? 'PUT' : 'POST';
+            const url = editingJobName ? `/jobs/${editingJobName}` : '/jobs';
+            const body = editingJobName ? { schedule, script, scriptContent } : { name, schedule, script, scriptContent };
+
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    log(data.message);
+                    clearForm();
+                    loadJobs();
+                } else {
+                    log('Error: ' + data.error);
+                }
+            } catch (error) {
+                log('Error saving job: ' + error.message);
+            }
+        }
+
+        function clearForm() {
+            document.getElementById('job-form').reset();
+            editingJobName = null;
+            document.querySelector('#job-form button').textContent = 'Save Job';
         }
 
         function log(message) {

@@ -69,6 +69,21 @@ app.get('/jobs', (req, res) => {
   res.json(jobList);
 });
 
+app.get('/jobs/:name', (req, res) => {
+  const jobName = req.params.name;
+  const job = jobs.get(jobName);
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+  const scriptContent = fs.readFileSync(job.scriptPath, 'utf8');
+  res.json({
+    name: jobName,
+    schedule: job.config.schedule,
+    script: job.config.script,
+    scriptContent
+  });
+});
+
 app.post('/run/:jobname', (req, res) => {
   const jobName = req.params.jobname;
   if (jobs.has(jobName)) {
@@ -77,6 +92,46 @@ app.post('/run/:jobname', (req, res) => {
   } else {
     res.status(404).json({ error: `Job ${jobName} not found.` });
   }
+});
+
+app.post('/jobs', (req, res) => {
+  const { name, schedule, script, scriptContent } = req.body;
+  if (!name || !schedule || !script || !scriptContent) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  const configPath = path.join(jobsDir, `${name}.config.json`);
+  const scriptPath = path.join(jobsDir, script);
+  if (fs.existsSync(configPath)) {
+    return res.status(409).json({ error: 'Job already exists' });
+  }
+  const config = { schedule, script };
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  fs.writeFileSync(scriptPath, scriptContent);
+  jobs.set(name, { config, scriptPath });
+  cron.schedule(config.schedule, () => {
+    console.log(`Running scheduled job: ${script}`);
+    runJob(name);
+  });
+  res.json({ message: 'Job created successfully' });
+});
+
+app.put('/jobs/:name', (req, res) => {
+  const jobName = req.params.name;
+  const { schedule, script, scriptContent } = req.body;
+  if (!schedule || !script || !scriptContent) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  const job = jobs.get(jobName);
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+  const configPath = path.join(jobsDir, `${jobName}.config.json`);
+  const scriptPath = path.join(jobsDir, script);
+  const config = { schedule, script };
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  fs.writeFileSync(scriptPath, scriptContent);
+  jobs.set(jobName, { config, scriptPath });
+  res.json({ message: 'Job updated successfully' });
 });
 
 // Get command line arguments (skip 'node' and 'index.js')

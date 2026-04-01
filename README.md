@@ -73,9 +73,13 @@ Run a job:
 curl -X POST http://localhost:3000/run/hello
 ```
 
-The API runs on port 3000 by default (configurable via `PORT` environment variable).
+## GUI
 
-## Cron Expression Syntax
+A simple web-based GUI is available at `http://localhost:3000` (or your configured port). It allows you to:
+- Load and view all jobs
+- Run jobs manually with a click
+
+Open your browser to the API URL to access the interface.
 
 Refer to [node-cron documentation](https://www.npmjs.com/package/node-cron) for cron expression syntax.
 

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M8 Cron Scheduler</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        ul { list-style-type: none; padding: 0; }
+        li { margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 8px 16px; margin: 5px; cursor: pointer; }
+        .run-btn { background-color: #4CAF50; color: white; border: none; }
+        .run-btn:hover { background-color: #45a049; }
+        #output { margin-top: 20px; padding: 10px; background-color: #f9f9f9; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h1>M8 Cron Scheduler</h1>
+    <button onclick="loadJobs()">Load Jobs</button>
+    <ul id="jobs-list"></ul>
+    <div id="output"></div>
+
+    <script>
+        async function loadJobs() {
+            try {
+                const response = await fetch('/jobs');
+                const jobs = await response.json();
+                const jobsList = document.getElementById('jobs-list');
+                jobsList.innerHTML = '';
+                jobs.forEach(job => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <strong>${job.name}</strong> - Schedule: ${job.schedule} - Script: ${job.script}
+                        <button class="run-btn" onclick="runJob('${job.name}')">Run Now</button>
+                    `;
+                    jobsList.appendChild(li);
+                });
+                log('Jobs loaded successfully.');
+            } catch (error) {
+                log('Error loading jobs: ' + error.message);
+            }
+        }
+
+        async function runJob(jobName) {
+            try {
+                const response = await fetch(`/run/${jobName}`, { method: 'POST' });
+                const result = await response.json();
+                if (response.ok) {
+                    log(result.message);
+                } else {
+                    log('Error: ' + result.error);
+                }
+            } catch (error) {
+                log('Error running job: ' + error.message);
+            }
+        }
+
+        function log(message) {
+            const output = document.getElementById('output');
+            output.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+        }
+    </script>
+</body>
+</html>

@@ -8,6 +8,10 @@ const jobsDir = path.join(__dirname, 'jobs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Middleware
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Store jobs in a map for easy access
 const jobs = new Map();
 

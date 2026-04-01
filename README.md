@@ -24,6 +24,15 @@ npm start job1 job2
 
 This will load the specified jobs from the `jobs/` directory and schedule them according to their config files. If no job names are provided, all jobs are loaded.
 
+Run with localtunnel exposure (optional):
+```bash
+npm run start:local
+# or with custom subdomain
+ENABLE_LOCALTUNNEL=true LOCALTUNNEL_SUBDOMAIN=myapp node index.js
+```
+
+When `ENABLE_LOCALTUNNEL=true`, the app tries to open a public URL and logs it to `logs/app.log` and stdout.
+
 To stop, press `Ctrl+C`.
 
 ## Adding Jobs

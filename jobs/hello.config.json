@@ -1,0 +1,4 @@
+{
+  "schedule": "* * * * *",
+  "script": "hello.js"
+}

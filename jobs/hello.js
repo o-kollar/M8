@@ -1,0 +1,1 @@
+console.log('Hello from the scheduled job at', new Date().toISOString());

@@ -5,7 +5,14 @@ const { spawn } = require('child_process');
 const express = require('express');
 const morgan = require('morgan');
 const winston = require('winston');
-const localtunnel = require('localtunnel');
+
+let localtunnel;
+try {
+  localtunnel = require('localtunnel');
+} catch (err) {
+  // This is optional; if missing, we log later and continue.
+  localtunnel = null;
+}
 
 const jobsDir = path.join(__dirname, 'jobs');
 const logDir = path.join(__dirname, 'logs');
@@ -175,6 +182,12 @@ app.put('/jobs/:name', (req, res) => {
 
 async function setupLocalTunnel(port) {
   if (process.env.ENABLE_LOCALTUNNEL !== 'true') return;
+
+  if (!localtunnel) {
+    logger.warn('ENABLE_LOCALTUNNEL=true but localtunnel module is not installed. Please npm install localtunnel or disable localtunnel.');
+    return;
+  }
+
   try {
     const tunnel = await localtunnel({
       port,

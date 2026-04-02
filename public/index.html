@@ -4,33 +4,391 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>M8 Cron Scheduler</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #333; }
-        ul { list-style-type: none; padding: 0; }
-        li { margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
-        button { padding: 8px 16px; margin: 5px; cursor: pointer; }
-        .run-btn { background-color: #4CAF50; color: white; border: none; }
-        .run-btn:hover { background-color: #45a049; }
-        #output { margin-top: 20px; padding: 10px; background-color: #f9f9f9; border: 1px solid #ddd; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 30px 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 15px;
+        }
+
+        .section-title i {
+            color: #667eea;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            padding: 10px 18px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 600;
+            transition: background 0.2s, transform 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+            transform: translateY(-2px);
+        }
+
+        #jobs-list {
+            list-style: none;
+            display: grid;
+            gap: 15px;
+        }
+
+        .job-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .job-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .job-name {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .job-details {
+            font-size: 0.95em;
+            color: #666;
+            margin-bottom: 12px;
+            display: grid;
+            gap: 6px;
+        }
+
+        .job-detail {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .job-detail i {
+            color: #667eea;
+            width: 16px;
+        }
+
+        .job-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        #job-form {
+            display: grid;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: grid;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group label i {
+            color: #667eea;
+            font-size: 0.9em;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 1em;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .output-section {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+        }
+
+        #output {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        #output:empty::before {
+            content: 'Output will appear here...';
+            color: #999;
+            font-style: italic;
+        }
+
+        .output-line {
+            padding: 4px 0;
+            color: #333;
+            border-bottom: 1px solid #eee;
+        }
+
+        .output-line:last-child {
+            border-bottom: none;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .empty-state i {
+            font-size: 3em;
+            color: #ddd;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .section {
+                padding: 20px;
+            }
+
+            .job-actions {
+                flex-direction: column;
+            }
+
+            .btn-success, .btn-secondary {
+                width: 100%;
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>M8 Cron Scheduler</h1>
-    <button onclick="loadJobs()">Load Jobs</button>
-    <ul id="jobs-list"></ul>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <i class="fas fa-cogs"></i>
+                M8 Cron Scheduler
+            </h1>
+            <p>Manage and execute scheduled jobs</p>
+        </div>
 
-    <h2>Configure Job</h2>
-    <form id="job-form">
-        <label>Job Name: <input type="text" id="job-name" required></label><br>
-        <label>Schedule: <input type="text" id="job-schedule" placeholder="* * * * *" required></label><br>
-        <label>Script Filename: <input type="text" id="job-script" placeholder="script.js" required></label><br>
-        <label>Script Content:<br><textarea id="job-script-content" rows="10" cols="50" required></textarea></label><br>
-        <button type="button" onclick="saveJob()">Save Job</button>
-        <button type="button" onclick="clearForm()">Clear</button>
-    </form>
+        <div class="main-grid">
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-tasks"></i>
+                    Scheduled Jobs
+                </div>
+                <button class="btn-primary" onclick="loadJobs()">
+                    <i class="fas fa-sync-alt"></i>
+                    Load Jobs
+                </button>
+                <ul id="jobs-list"></ul>
+                <div id="empty-jobs" class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <p>No jobs loaded. Click "Load Jobs" to get started.</p>
+                </div>
+            </div>
 
-    <div id="output"></div>
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-plus-circle"></i>
+                    Configure Job
+                </div>
+                <form id="job-form">
+                    <div class="form-group">
+                        <label for="job-name"><i class="fas fa-tag"></i>Job Name</label>
+                        <input type="text" id="job-name" placeholder="e.g., backup-daily" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="job-schedule"><i class="fas fa-clock"></i>Schedule (Cron Expression)</label>
+                        <input type="text" id="job-schedule" placeholder="e.g., * * * * * (every minute)" required>
+                        <small style="color: #999;">Format: minute hour day month weekday</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="job-script"><i class="fas fa-file-code"></i>Script Filename</label>
+                        <input type="text" id="job-script" placeholder="e.g., script.js" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="job-script-content"><i class="fas fa-code"></i>Script Content</label>
+                        <textarea id="job-script-content" rows="10" placeholder="Write your JavaScript code here..." required></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn-primary" onclick="saveJob()">
+                            <i class="fas fa-save"></i>
+                            Save Job
+                        </button>
+                        <button type="button" class="btn-secondary" onclick="clearForm()">
+                            <i class="fas fa-trash"></i>
+                            Clear
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="output-section">
+            <div class="section-title">
+                <i class="fas fa-terminal"></i>
+                Output Console
+            </div>
+            <div id="output"></div>
+        </div>
+    </div>
 
     <script>
         let editingJobName = null;
@@ -40,19 +398,48 @@
                 const response = await fetch('/jobs');
                 const jobs = await response.json();
                 const jobsList = document.getElementById('jobs-list');
+                const emptyState = document.getElementById('empty-jobs');
+                
                 jobsList.innerHTML = '';
-                jobs.forEach(job => {
-                    const li = document.createElement('li');
-                    li.innerHTML = `
-                        <strong>${job.name}</strong> - Schedule: ${job.schedule} - Script: ${job.script}
-                        <button class="run-btn" onclick="runJob('${job.name}')">Run Now</button>
-                        <button onclick="editJob('${job.name}')">Edit</button>
-                    `;
-                    jobsList.appendChild(li);
-                });
-                log('Jobs loaded successfully.');
+                
+                if (jobs.length === 0) {
+                    emptyState.style.display = 'block';
+                } else {
+                    emptyState.style.display = 'none';
+                    jobs.forEach(job => {
+                        const li = document.createElement('li');
+                        li.className = 'job-card';
+                        li.innerHTML = `
+                            <div class="job-name">
+                                <i class="fas fa-circle-notch"></i> ${job.name}
+                            </div>
+                            <div class="job-details">
+                                <div class="job-detail">
+                                    <i class="fas fa-clock"></i>
+                                    <span><strong>Schedule:</strong> ${job.schedule}</span>
+                                </div>
+                                <div class="job-detail">
+                                    <i class="fas fa-file-code"></i>
+                                    <span><strong>Script:</strong> ${job.script}</span>
+                                </div>
+                            </div>
+                            <div class="job-actions">
+                                <button class="btn-success" onclick="runJob('${job.name}')">
+                                    <i class="fas fa-play"></i>
+                                    Run Now
+                                </button>
+                                <button class="btn-secondary" onclick="editJob('${job.name}')">
+                                    <i class="fas fa-edit"></i>
+                                    Edit
+                                </button>
+                            </div>
+                        `;
+                        jobsList.appendChild(li);
+                    });
+                }
+                log('✓ Jobs loaded successfully (' + jobs.length + ' job' + (jobs.length !== 1 ? 's' : '') + ')');
             } catch (error) {
-                log('Error loading jobs: ' + error.message);
+                log('✗ Error loading jobs: ' + error.message);
             }
         }
 
@@ -61,12 +448,12 @@
                 const response = await fetch(`/run/${jobName}`, { method: 'POST' });
                 const result = await response.json();
                 if (response.ok) {
-                    log(result.message);
+                    log('▶ ' + result.message);
                 } else {
-                    log('Error: ' + result.error);
+                    log('✗ Error: ' + result.error);
                 }
             } catch (error) {
-                log('Error running job: ' + error.message);
+                log('✗ Error running job: ' + error.message);
             }
         }
 
@@ -80,12 +467,22 @@
                     document.getElementById('job-script').value = data.script;
                     document.getElementById('job-script-content').value = data.scriptContent;
                     editingJobName = jobName;
-                    document.querySelector('#job-form button').textContent = 'Update Job';
+                    
+                    // Update button to show "Update Job"
+                    const saveBtn = Array.from(document.querySelectorAll('.form-actions button'))
+                        .find(btn => btn.textContent.includes('Save'));
+                    if (saveBtn) {
+                        saveBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Update Job';
+                    }
+                    
+                    // Scroll to form
+                    document.getElementById('job-form').scrollIntoView({ behavior: 'smooth' });
+                    log('✎ Editing job: ' + jobName);
                 } else {
-                    log('Error: ' + data.error);
+                    log('✗ Error: ' + data.error);
                 }
             } catch (error) {
-                log('Error loading job: ' + error.message);
+                log('✗ Error loading job: ' + error.message);
             }
         }
 
@@ -94,6 +491,11 @@
             const schedule = document.getElementById('job-schedule').value;
             const script = document.getElementById('job-script').value;
             const scriptContent = document.getElementById('job-script-content').value;
+
+            if (!name || !schedule || !script || !scriptContent) {
+                log('✗ Please fill in all fields');
+                return;
+            }
 
             const method = editingJobName ? 'PUT' : 'POST';
             const url = editingJobName ? `/jobs/${editingJobName}` : '/jobs';
@@ -107,27 +509,45 @@
                 });
                 const data = await response.json();
                 if (response.ok) {
-                    log(data.message);
+                    log(editingJobName ? '✓ Job updated: ' : '✓ Job created: ' + name);
                     clearForm();
                     loadJobs();
                 } else {
-                    log('Error: ' + data.error);
+                    log('✗ Error: ' + data.error);
                 }
             } catch (error) {
-                log('Error saving job: ' + error.message);
+                log('✗ Error saving job: ' + error.message);
             }
         }
 
         function clearForm() {
             document.getElementById('job-form').reset();
             editingJobName = null;
-            document.querySelector('#job-form button').textContent = 'Save Job';
+            
+            // Reset button to show "Save Job"
+            const saveBtn = Array.from(document.querySelectorAll('.form-actions button'))
+                .find(btn => btn.textContent.includes('Save') || btn.textContent.includes('Update'));
+            if (saveBtn) {
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Job';
+            }
+            
+            log('⟲ Form cleared');
         }
 
         function log(message) {
             const output = document.getElementById('output');
-            output.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            const line = document.createElement('div');
+            line.className = 'output-line';
+            line.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
         }
+
+        // Load jobs on page load
+        window.addEventListener('load', () => {
+            log('📡 M8 Cron Scheduler loaded');
+            loadJobs();
+        });
     </script>
 </body>
 </html>

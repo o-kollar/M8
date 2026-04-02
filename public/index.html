@@ -514,11 +514,31 @@
             margin: 18px 0;
         }
 
+        /* ── LOGS PANEL ── */
+        .logs-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to   { transform: translateY(0); opacity: 1; }
+        }
+
+        #logs-content::-webkit-scrollbar { width: 6px; }
+        #logs-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
         /* responsive */
         @media (max-width: 640px) {
             header { flex-direction: column; align-items: flex-start; gap: 12px; }
             .job-card { flex-wrap: wrap; }
             .job-actions { width: 100%; justify-content: flex-end; }
+            #logs-modal { padding: 20px; }
         }
     </style>
 </head>
@@ -585,17 +605,21 @@
                     <input class="form-input" id="job-schedule" placeholder="* * * * *" />
                     <div class="form-hint">min · hour · day · month · weekday</div>
                 </div>
-
+                
                 <div class="form-group">
-                    <div class="form-label"><i class="fas fa-file-code"></i> Script Filename</div>
-                    <input class="form-input" id="job-script" placeholder="script.js" />
+                    <div class="form-label"><i class="fas fa-brain"></i> LLM Provider</div>
+                    <select class="form-input" id="job-llm">
+                        <option value="gemini">Gemini (Google)</option>
+                        <option value="replicate">Replicate (Claude)</option>
+                    </select>
+                    <div class="form-hint">Choose which LLM to use for job execution</div>
                 </div>
-
+                
                 <div class="form-group">
-                    <div class="form-label"><i class="fas fa-code"></i> Script Content</div>
-                    <textarea class="form-textarea" id="job-script-content" placeholder="// Your JavaScript code here..."></textarea>
+                    <div class="form-label"><i class="fas fa-book"></i> Instructions (Instructions.md)</div>
+                    <textarea class="form-textarea" id="job-instructions-content" placeholder="# Describe job behavior, config, etc."></textarea>
+                    <div class="form-hint">This content will be saved to Instructions.md and passed to the global job runner</div>
                 </div>
-
                 <div class="form-actions">
                     <button class="btn btn-accent" onclick="saveJob()">
                         <i class="fas fa-floppy-disk"></i>
@@ -618,11 +642,34 @@
                 <div class="dot dot-green"></div>
             </div>
             <div class="console-label">output console</div>
-            <button class="btn btn-ghost btn-sm" onclick="clearConsole()">
-                <i class="fas fa-trash-can"></i> Clear
-            </button>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-ghost btn-sm" onclick="viewFullLogs()">
+                    <i class="fas fa-file-lines"></i> View Logs
+                </button>
+                <button class="btn btn-ghost btn-sm" onclick="clearConsole()">
+                    <i class="fas fa-trash-can"></i> Clear
+                </button>
+            </div>
         </div>
         <div id="output"></div>
+    </div>
+
+    <!-- LOGS VIEWER -->
+    <div id="logs-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; backdrop-filter: blur(4px); padding: 40px;" onclick="closeLogs(event)">
+        <div class="logs-panel" onclick="event.stopPropagation()" style="position: static; top: auto; left: auto; right: auto; bottom: auto; width: 100%; height: 100%;">
+            <div class="console-header">
+                <div class="console-dots">
+                    <div class="dot dot-red"></div>
+                    <div class="dot dot-yellow"></div>
+                    <div class="dot dot-green"></div>
+                </div>
+                <div class="console-label">app.log</div>
+                <button class="btn btn-ghost btn-sm" onclick="closeLogs()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+            <div id="logs-content" style="padding: 16px 20px; height: calc(100% - 56px); overflow-y: auto; font-family: 'Space Mono', monospace; font-size: 0.76em; line-height: 1.6; color: var(--muted2); scrollbar-width: thin; scrollbar-color: var(--border) transparent;"></div>
+        </div>
     </div>
 
 </div>
@@ -696,8 +743,8 @@
             if (r.ok) {
                 document.getElementById('job-name').value = data.name;
                 document.getElementById('job-schedule').value = data.schedule;
-                document.getElementById('job-script').value = data.script;
-                document.getElementById('job-script-content').value = data.scriptContent;
+                document.getElementById('job-llm').value = data.llm || 'gemini';
+                document.getElementById('job-instructions-content').value = data.instructions || '';
                 editingJobName = name;
                 document.getElementById('save-btn-text').textContent = 'Update Job';
                 document.getElementById('form-panel-title').textContent = 'Edit Job';
@@ -714,17 +761,17 @@
     async function saveJob() {
         const name = document.getElementById('job-name').value.trim();
         const schedule = document.getElementById('job-schedule').value.trim();
-        const script = document.getElementById('job-script').value.trim();
-        const scriptContent = document.getElementById('job-script-content').value.trim();
+        const llm = document.getElementById('job-llm').value;
+        const instructionsContent = document.getElementById('job-instructions-content').value.trim();
 
-        if (!name || !schedule || !script || !scriptContent) {
-            log('All fields are required', 'warn');
+        if (!name || !schedule) {
+            log('Name and schedule are required', 'warn');
             return;
         }
 
         const method = editingJobName ? 'PUT' : 'POST';
         const url = editingJobName ? `/jobs/${editingJobName}` : '/jobs';
-        const body = editingJobName ? { schedule, script, scriptContent } : { name, schedule, script, scriptContent };
+        const body = editingJobName ? { schedule, llm, instructionsContent } : { name, schedule, llm, instructionsContent };
 
         try {
             const r = await fetch(url, {
@@ -746,7 +793,7 @@
     }
 
     function clearForm() {
-        ['job-name','job-schedule','job-script','job-script-content'].forEach(id => {
+        ['job-name','job-schedule','job-llm','job-instructions-content'].forEach(id => {
             document.getElementById(id).value = '';
         });
         editingJobName = null;
@@ -759,12 +806,54 @@
         document.getElementById('output').innerHTML = '';
     }
 
+    async function viewFullLogs() {
+        const modal = document.getElementById('logs-modal');
+        const content = document.getElementById('logs-content');
+        modal.style.display = 'flex';
+        content.innerHTML = '<div style="color: var(--muted);">Loading logs...</div>';
+        
+        try {
+            const response = await fetch('/logs');
+            const data = await response.json();
+            const logs = data.logs || 'No logs available.';
+            
+            // Split logs into lines and format them
+            const lines = logs.split('\n').filter(line => line.trim());
+            content.innerHTML = lines.map(line => {
+                let className = '';
+                if (line.includes('[ERROR]')) className = 'log-msg error';
+                else if (line.includes('[WARN]')) className = 'log-msg warn';
+                else if (line.includes('[INFO]')) className = 'log-msg info';
+                else if (line.includes('[DEBUG]')) className = 'log-msg';
+                else className = 'log-msg success';
+                
+                return `<div class="${className}">${escapeHtml(line)}</div>`;
+            }).join('');
+            
+            // Auto-scroll to bottom
+            content.scrollTop = content.scrollHeight;
+        } catch (e) {
+            content.innerHTML = `<div class="log-msg error">Failed to load logs: ${escapeHtml(e.message)}</div>`;
+        }
+    }
+
+    function closeLogs(event) {
+        if (event && event.target.id !== 'logs-modal') return;
+        document.getElementById('logs-modal').style.display = 'none';
+    }
+
+    function escapeHtml(text) {
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
     function log(msg, type = '') {
         const out = document.getElementById('output');
         const line = document.createElement('div');
         line.className = 'log-line';
-        const t = new Date().toLocaleTimeString('en-US', { hour12: false });
-        line.innerHTML = `<span class="log-time">${t}</span><span class="log-msg ${type}">${msg}</span>`;
+        const timestamp = new Date().toISOString();
+        const logMsg = `${timestamp} [${type.toUpperCase()}] ${msg}`;
+        line.innerHTML = `<span class="log-msg ${type}">${escapeHtml(logMsg)}</span>`;
         out.appendChild(line);
         out.scrollTop = out.scrollHeight;
     }
@@ -772,7 +861,49 @@
     window.addEventListener('load', () => {
         log('M8 Cron Scheduler initialized', 'success');
         loadJobs();
+        connectLogStream();
     });
+
+    function connectLogStream() {
+        const eventSource = new EventSource('/logs/stream');
+        
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.line) {
+                    displayLogLine(data.line);
+                }
+            } catch (e) {
+                // Ignore parse errors (heartbeat)
+            }
+        };
+
+        eventSource.onerror = () => {
+            eventSource.close();
+            // Attempt to reconnect after 5 seconds
+            setTimeout(() => {
+                log('Reconnecting to log stream...', 'warn');
+                connectLogStream();
+            }, 5000);
+        };
+    }
+
+    function displayLogLine(line) {
+        const out = document.getElementById('output');
+        const logLine = document.createElement('div');
+        logLine.className = 'log-line';
+        
+        let msgClass = '';
+        if (line.includes('[ERROR]')) msgClass = 'error';
+        else if (line.includes('[WARN]')) msgClass = 'warn';
+        else if (line.includes('[INFO]')) msgClass = 'info';
+        else if (line.includes('[DEBUG]')) msgClass = '';
+        else msgClass = 'success';
+        
+        logLine.innerHTML = `<span class="log-msg ${msgClass}">${escapeHtml(line)}</span>`;
+        out.appendChild(logLine);
+        out.scrollTop = out.scrollHeight;
+    }
 </script>
 </body>
 </html>

@@ -4,74 +4,86 @@
  * Reads instructions from jobs/<jobName>/Instructions.md
  * Calls LLM with those instructions
  */
-
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
-const chalk = require('chalk');
-
-// 1. Require marked and marked-terminal
-const { marked } = require('marked');
+const { log, spinner, note, outro, isCancel } = require('@clack/prompts');
+const pc   = require('picocolors');
+const { marked }         = require('marked');
 const { markedTerminal } = require('marked-terminal');
 
-// 2. Tell marked to format the output for the terminal
 marked.use(markedTerminal());
 
-const { callLLM, callReplicate } = require(path.join(__dirname, 'lib', 'llm.js'));
+const { callLLM } = require(path.join(__dirname, 'lib', 'llm.js'));
 
-chalk.level = 1; 
+// ─── Args ─────────────────────────────────────────────────────────────────────
 const jobName = process.argv[2];
 if (!jobName) {
-  console.error(chalk.red('❌ Usage: node job.js <jobName>'));
+  log.error(`Usage: ${pc.dim('node job.js')} ${pc.cyan('<jobName>')}`);
   process.exit(1);
 }
 
-const jobDir = path.join(__dirname, 'jobs', jobName);
+const jobDir          = path.join(__dirname, 'jobs', jobName);
 const instructionsPath = path.join(jobDir, 'Instructions.md');
-const configPath = path.join(jobDir, 'config.json');
+const configPath       = path.join(jobDir, 'config.json');
 
-// Check job folder exists
 if (!fs.existsSync(jobDir)) {
-  console.error(chalk.red(`❌ Job folder not found: ${jobDir}`));
+  log.error(`Job folder not found: ${pc.red(jobDir)}`);
   process.exit(1);
 }
 
-// Load instructions
-let instructions = '';
-if (fs.existsSync(instructionsPath)) {
-  instructions = fs.readFileSync(instructionsPath, 'utf8');
-}
+// ─── Load files ───────────────────────────────────────────────────────────────
+const instructions = fs.existsSync(instructionsPath)
+  ? fs.readFileSync(instructionsPath, 'utf8')
+  : '';
 
-// Load config (optional, for future use)
 let config = {};
 if (fs.existsSync(configPath)) {
   try {
     config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  } catch (err) {
-    console.error(chalk.red(`❌ Malformed config.json at: ${configPath}`));
+  } catch {
+    log.warn(`Malformed config.json at: ${pc.dim(configPath)} — using defaults`);
   }
 }
 
-console.log(chalk.blue(`🚀 Running job: ${chalk.bold(jobName)}`));
-console.log(chalk.gray(`📅 Timestamp: ${new Date().toISOString()}`));
-
-// Call LLM with instructions (if available)
+// ─── Run ──────────────────────────────────────────────────────────────────────
 (async () => {
-  if (instructions) {
-    const modelName = config.model || 'gemini-3.1-flash-lite-preview'; // Default model
-    console.log(chalk.cyan(`🤖 Using model: ${chalk.bold(modelName)}`));
-    
-    const result = await callLLM(instructions, modelName);
-    
-    if (result) {
-      console.log(chalk.green('\n______________\n'));
-      
-      // 3. Parse and print the markdown beautifully!
-      console.log(marked.parse(result)); 
-      
-    } else {
-      console.log(chalk.yellow('⚠️  No response from LLM'));
-    }
-  } else {
-    console.warn(chalk.yellow('⚠️  No instructions.md found for this job'));
+  log.step(
+    `${pc.cyan(pc.bold(jobName))}  ${pc.dim(new Date().toISOString())}`
+  );
+
+  if (!instructions) {
+    log.warn('No Instructions.md found for this job — nothing to do.');
+    outro(pc.dim('done'));
+    return;
   }
+
+  const modelName = config.model || 'gemini-2.0-flash-lite';
+  log.info(`Model: ${pc.cyan(modelName)}`);
+
+  const s = spinner();
+  s.start('Calling LLM…');
+
+  let result;
+  try {
+    result = await callLLM(instructions, modelName);
+  } catch (err) {
+    s.stop('LLM call failed');
+    log.error(pc.red(err.message));
+    process.exit(1);
+  }
+
+  if (!result) {
+    s.stop('No response from LLM');
+    log.warn('The model returned an empty response.');
+    outro(pc.dim('done'));
+    return;
+  }
+
+  s.stop(`${pc.green('Response received')}`);
+
+  // Print rendered markdown directly — note() wraps in a box that breaks
+  // when this process's stdout is buffered and replayed by the parent.
+  console.log(marked.parse(result));
+
+  outro(pc.dim('done'));
 })();

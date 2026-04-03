@@ -1,4 +1,3 @@
-// 1. Force color output globally
 process.env.FORCE_COLOR = '1';
 
 require('dotenv').config();
@@ -8,263 +7,241 @@ const path = require('path');
 const { spawn } = require('child_process');
 const express = require('express');
 const morgan = require('morgan');
-const winston = require('winston');
-const chalk = require('chalk');
+const { intro, outro, log, spinner, note, text, select, isCancel } = require('@clack/prompts');
+const { marked }         = require('marked');
+const { markedTerminal } = require('marked-terminal');
+const { callLLM }        = require(path.join(__dirname, 'lib', 'llm.js'));
+
+marked.use(markedTerminal());
+const pc = require('picocolors'); // clack's peer dep — zero-cost, already installed
 
 let localtunnel;
 try {
   localtunnel = require('localtunnel');
-} catch (err) {
+} catch {
   localtunnel = null;
 }
 
-const jobsDir = path.join(__dirname, 'jobs');
-const logDir = path.join(__dirname, 'logs');
+// ─── Directories ─────────────────────────────────────────────────────────────
+const jobsDir  = path.join(__dirname, 'jobs');
+const logDir   = path.join(__dirname, 'logs');
 const publicDir = path.join(__dirname, 'public');
-if (!fs.existsSync(jobsDir)) fs.mkdirSync(jobsDir, { recursive: true });
-if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
+for (const dir of [jobsDir, logDir, publicDir]) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
 
-// Configure Winston Logger with Chalk for console and clean text for file
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  transports:[
-    // Console Transport (Colorful)
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-        winston.format.printf(({ timestamp, level, message }) => {
-          let colorLevel = level.toUpperCase();
-          if (level === 'info') colorLevel = chalk.green.bold(colorLevel);
-          if (level === 'warn') colorLevel = chalk.yellow.bold(colorLevel);
-          if (level === 'error') colorLevel = chalk.red.bold(colorLevel);
-          
-          return `${chalk.gray(timestamp)}[${colorLevel}] ${message}`;
-        })
-      )
-    }),
-    // File Transport (Plain text - Strips Chalk colors)
-    new winston.transports.File({ 
-      filename: path.join(logDir, 'app.log'),
-      format: winston.format.combine(
-        winston.format.uncolorize(), // Removes ANSI color codes for the file
-        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-        winston.format.printf(({ timestamp, level, message }) => `${timestamp}[${level.toUpperCase()}] ${message}`)
-      )
-    })
-  ],
-});
+// ─── File-only logger (no ANSI codes) ────────────────────────────────────────
+const logFilePath = path.join(logDir, 'app.log');
 
-const app = express();
+function stripAnsi(str) {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1B\[[0-9;]*m/g, '');
+}
+
+function writeToFile(level, message) {
+  const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const line = `${ts}[${level.toUpperCase()}] ${stripAnsi(message)}\n`;
+  fs.appendFileSync(logFilePath, line);
+}
+
+// ─── Thin logger that routes to clack + file ─────────────────────────────────
+const logger = {
+  info:  (msg) => { log.info(msg);             writeToFile('info',  msg); },
+  warn:  (msg) => { log.warn(msg);             writeToFile('warn',  msg); },
+  error: (msg) => { log.error(msg);            writeToFile('error', msg); },
+  step:  (msg) => { log.step(msg);             writeToFile('info',  msg); },
+  success:(msg) => { log.success(msg);          writeToFile('info',  msg); },
+  // raw line — no clack chrome, just console + file
+  line:  (msg) => { console.log(msg);          writeToFile('info',  msg); },
+};
+
+// ─── Express ──────────────────────────────────────────────────────────────────
+const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// Request logging
 app.use(morgan('combined', {
-  stream: { write: (message) => logger.info(message.trim()) },
+  stream: { write: (message) => writeToFile('http', message.trim()) },
 }));
-
-// Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Store jobs in a map for easy access
+// ─── Job registry ─────────────────────────────────────────────────────────────
 const jobs = new Map();
 
-// Function to load jobs
-function loadJobs(specificJobs =[]) {
-  const allJobs = fs.readdirSync(jobsDir)
-    .filter((item) => {
-      const fullPath = path.join(jobsDir, item);
-      return fs.statSync(fullPath).isDirectory() && fs.existsSync(path.join(fullPath, 'config.json'));
-    });
-  
-  const jobsToLoad = specificJobs.length > 0 ? specificJobs : allJobs;
+// ─── Load jobs ────────────────────────────────────────────────────────────────
+function loadJobs(specificJobs = []) {
+  const allJobs = fs.readdirSync(jobsDir).filter((item) => {
+    const fullPath = path.join(jobsDir, item);
+    return (
+      fs.statSync(fullPath).isDirectory() &&
+      fs.existsSync(path.join(fullPath, 'config.json'))
+    );
+  });
 
-  jobsToLoad.forEach((jobName) => {
-    const jobDir = path.join(jobsDir, jobName);
+  const toLoad = specificJobs.length > 0 ? specificJobs : allJobs;
+
+  toLoad.forEach((jobName) => {
+    const jobDir    = path.join(jobsDir, jobName);
     const configPath = path.join(jobDir, 'config.json');
-    
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
-      jobs.set(jobName, { config, jobDir });
-      cron.schedule(config.schedule, () => {
-        logger.info(`Running scheduled job: ${chalk.cyan(jobName)}`);
-        runJob(jobName);
-      });
-      logger.info(`Scheduled job: ${chalk.cyan.bold(jobName)} with schedule: ${chalk.yellow(config.schedule)}`);
-    } else {
-      logger.error(`Config file not found: ${chalk.red(configPath)}`);
+    if (!fs.existsSync(configPath)) {
+      logger.error(`Config not found: ${pc.red(configPath)}`);
+      return;
     }
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    jobs.set(jobName, { config, jobDir });
+
+    cron.schedule(config.schedule, () => {
+      logger.step(`Running scheduled job: ${pc.cyan(jobName)}`);
+      runJob(jobName);
+    });
+
+    logger.success(
+      `Scheduled ${pc.cyan(pc.bold(jobName))}  ${pc.dim(config.schedule)}`
+    );
   });
 }
 
-// Function to run a job
+// ─── Run a job ────────────────────────────────────────────────────────────────
 function runJob(jobName) {
   const job = jobs.get(jobName);
   if (!job) {
-    logger.error(`Job not found: ${chalk.cyan(jobName)}`);
+    logger.error(`Job not found: ${pc.cyan(jobName)}`);
     return;
   }
 
-  // 2. Spawn with FORCE_COLOR environment variable injected!
-  const child = spawn('node', [path.join(__dirname, 'job.js'), jobName], { 
+  const s = spinner();
+  s.start(`${pc.cyan(jobName)} — running`);
+
+  const child = spawn('node', [path.join(__dirname, 'job.js'), jobName], {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, FORCE_COLOR: '1' } 
+    env: { ...process.env, FORCE_COLOR: '1' },
   });
 
-  let stdoutBuffer = '';
-  child.stdout.on('data', (data) => {
-    stdoutBuffer += data.toString();
-    const lines = stdoutBuffer.split('\n');
-    stdoutBuffer = lines.pop(); // Keep partial line in buffer
-    lines.forEach(line => {
-      // Only log if the line has content to avoid metadata-only lines in logs
-      if (line.trim()) {
-        logger.info(line.replace(/\r/g, ''));
-      }
-    });
-  });
+  // Collect the full output — piping lines into s.message() causes them to
+  // flash and disappear. We flush everything AFTER the spinner resolves.
+  let fullStdout = '';
+  let fullStderr = '';
 
-  let stderrBuffer = '';
-  child.stderr.on('data', (data) => {
-    stderrBuffer += data.toString();
-    const lines = stderrBuffer.split('\n');
-    stderrBuffer = lines.pop();
-    lines.forEach(line => {
-      if (line.trim()) {
-        logger.error(chalk.red(line.replace(/\r/g, '')));
-      }
-    });
-  });
+  child.stdout.on('data', (data) => { fullStdout += data.toString(); });
+  child.stderr.on('data', (data) => { fullStderr += data.toString(); });
 
   child.on('error', (err) => {
-    logger.error(`Error running job ${chalk.cyan(jobName)}: ${chalk.red(err.message)}`);
+    s.stop(`${pc.cyan(jobName)} — spawn error`);
+    logger.error(`${pc.cyan(jobName)}: ${pc.red(err.message)}`);
   });
 
   child.on('close', (code) => {
-    // Flush any remaining partial lines
-    if (stdoutBuffer.trim()) {
-      logger.info(stdoutBuffer.replace(/\r/g, ''));
-    }
-    if (stderrBuffer.trim()) {
-      logger.error(chalk.red(stderrBuffer.replace(/\r/g, '')));
+    if (code === 0) {
+      s.stop(`${pc.cyan(jobName)} — ${pc.green('done')} ${pc.dim('(exit 0)')}`);
+    } else {
+      s.stop(`${pc.cyan(jobName)} — ${pc.red('failed')} ${pc.dim(`(exit ${code})`)}`);
     }
 
-    const codeColor = code === 0 ? chalk.green(code) : chalk.red(code);
-    logger.info(`Job ${chalk.cyan(jobName)} finished with exit code ${codeColor}`);
+    // Print buffered output AFTER spinner is gone so it renders properly
+    if (fullStdout.trim()) {
+      process.stdout.write(fullStdout);
+      writeToFile('info', fullStdout);
+    }
+    if (fullStderr.trim()) {
+      process.stderr.write(fullStderr);
+      writeToFile('error', fullStderr);
+    }
   });
 }
 
-// API Routes
-app.get('/jobs', (req, res) => {
-  const jobList = Array.from(jobs.keys()).map((name) => ({
-    name,
-    schedule: jobs.get(name).config.schedule,
-    llm: jobs.get(name).config.llm || 'gemini',
-  }));
-  res.json(jobList);
+// ─── API Routes ───────────────────────────────────────────────────────────────
+app.get('/jobs', (_req, res) => {
+  res.json(
+    Array.from(jobs.keys()).map((name) => ({
+      name,
+      schedule: jobs.get(name).config.schedule,
+      llm:      jobs.get(name).config.llm || 'gemini',
+    }))
+  );
 });
 
 app.get('/jobs/:name', (req, res) => {
-  const jobName = req.params.name;
-  const job = jobs.get(jobName);
-  if (!job) {
-    return res.status(404).json({ error: 'Job not found' });
-  }
+  const job = jobs.get(req.params.name);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+
   let instructions = '';
-  try {
-    const instructionsPath = path.join(job.jobDir, 'Instructions.md');
-    if (fs.existsSync(instructionsPath)) {
-      instructions = fs.readFileSync(instructionsPath, 'utf8');
-    }
-  } catch (err) {
-    instructions = '';
-  }
+  const instrPath = path.join(job.jobDir, 'Instructions.md');
+  if (fs.existsSync(instrPath)) instructions = fs.readFileSync(instrPath, 'utf8');
 
   res.json({
-    name: jobName,
-    schedule: job.config.schedule,
-    llm: job.config.llm || 'gemini',
+    name:         req.params.name,
+    schedule:     job.config.schedule,
+    llm:          job.config.llm || 'gemini',
     instructions,
   });
 });
 
 app.post('/run/:jobname', (req, res) => {
   const jobName = req.params.jobname;
-  if (jobs.has(jobName)) {
-    runJob(jobName);
-    res.json({ message: `Job ${jobName} triggered successfully.` });
-  } else {
-    res.status(404).json({ error: `Job ${jobName} not found.` });
-  }
+  if (!jobs.has(jobName)) return res.status(404).json({ error: `Job ${jobName} not found.` });
+  runJob(jobName);
+  res.json({ message: `Job ${jobName} triggered successfully.` });
 });
 
 app.post('/jobs', (req, res) => {
   const { name, schedule, instructionsContent, llm } = req.body;
-  if (!name || !schedule) {
+  if (!name || !schedule)
     return res.status(400).json({ error: 'Missing required fields: name, schedule' });
-  }
-  
-  const jobDir = path.join(jobsDir, name);
-  const configPath = path.join(jobDir, 'config.json');
-  const instructionsPath = path.join(jobDir, 'Instructions.md');
-  
-  if (fs.existsSync(jobDir)) {
-    return res.status(409).json({ error: 'Job already exists' });
-  }
-  
+
+  const jobDir      = path.join(jobsDir, name);
+  const configPath  = path.join(jobDir, 'config.json');
+  const instrPath   = path.join(jobDir, 'Instructions.md');
+
+  if (fs.existsSync(jobDir)) return res.status(409).json({ error: 'Job already exists' });
+
   fs.mkdirSync(jobDir, { recursive: true });
-  
   const config = { schedule, llm: llm || 'gemini' };
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  
-  const instr = typeof instructionsContent === 'string' ? instructionsContent : `# ${name} Job\n\nAdd documentation for this job here.\n`;
-  fs.writeFileSync(instructionsPath, instr);
-  
+  fs.writeFileSync(
+    instrPath,
+    typeof instructionsContent === 'string'
+      ? instructionsContent
+      : `# ${name} Job\n\nAdd documentation for this job here.\n`
+  );
+
   jobs.set(name, { config, jobDir });
   cron.schedule(config.schedule, () => {
-    logger.info(`Running scheduled job: ${chalk.cyan(name)}`);
+    logger.step(`Running scheduled job: ${pc.cyan(name)}`);
     runJob(name);
   });
 
+  logger.success(`Created job ${pc.cyan(pc.bold(name))}`);
   res.json({ message: 'Job created successfully' });
 });
 
 app.put('/jobs/:name', (req, res) => {
   const jobName = req.params.name;
   const { schedule, instructionsContent, llm } = req.body;
-  if (!schedule) {
-    return res.status(400).json({ error: 'Missing required fields: schedule' });
-  }
-  const job = jobs.get(jobName);
-  if (!job) {
-    return res.status(404).json({ error: 'Job not found' });
-  }
+  if (!schedule) return res.status(400).json({ error: 'Missing required fields: schedule' });
 
-  const configPath = path.join(job.jobDir, 'config.json');
-  const instructionsPath = path.join(job.jobDir, 'Instructions.md');
+  const job = jobs.get(jobName);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+
   const config = { schedule, llm: llm || 'gemini' };
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  
-  if (typeof instructionsContent === 'string') {
-    fs.writeFileSync(instructionsPath, instructionsContent);
-  }
+  fs.writeFileSync(path.join(job.jobDir, 'config.json'), JSON.stringify(config, null, 2));
+  if (typeof instructionsContent === 'string')
+    fs.writeFileSync(path.join(job.jobDir, 'Instructions.md'), instructionsContent);
+
   jobs.set(jobName, { config, jobDir: job.jobDir });
+  logger.success(`Updated job ${pc.cyan(pc.bold(jobName))}`);
   res.json({ message: 'Job updated successfully' });
 });
 
-app.get('/logs', (req, res) => {
-  const logPath = path.join(logDir, 'app.log');
-  if (fs.existsSync(logPath)) {
-    const content = fs.readFileSync(logPath, 'utf8');
-    res.json({ logs: content });
+// ─── Log routes ───────────────────────────────────────────────────────────────
+app.get('/logs', (_req, res) => {
+  if (fs.existsSync(logFilePath)) {
+    res.json({ logs: fs.readFileSync(logFilePath, 'utf8') });
   } else {
     res.json({ logs: 'No logs available yet.' });
   }
 });
-
-const logPath = path.join(logDir, 'app.log');
 
 app.get('/logs/stream', (req, res) => {
   let currentPosition = 0;
@@ -273,96 +250,228 @@ app.get('/logs/stream', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  if (fs.existsSync(logPath)) {
-    const content = fs.readFileSync(logPath, 'utf8');
-    const lines = content.split('\n').filter(line => line.trim());
-    const tailLines = lines.slice(-50);
-    tailLines.forEach(line => {
-      res.write(`data: ${JSON.stringify({ line })}\n\n`);
-    });
+  if (fs.existsSync(logFilePath)) {
+    const content = fs.readFileSync(logFilePath, 'utf8');
+    const tail    = content.split('\n').filter(Boolean).slice(-50);
+    tail.forEach((line) => res.write(`data: ${JSON.stringify({ line })}\n\n`));
     currentPosition = content.length;
   }
 
-  const watcher = fs.watch(logPath, () => {
+  const watcher = fs.watch(logFilePath, () => {
     try {
-      const content = fs.readFileSync(logPath, 'utf8');
-      const currentLength = content.length;
-      
-      if (currentLength > currentPosition) {
-        const newContent = content.slice(currentPosition);
-        const newLines = newContent.split('\n').filter(line => line.trim());
-        
-        newLines.forEach(line => {
-          res.write(`data: ${JSON.stringify({ line })}\n\n`);
-        });
-        
-        currentPosition = currentLength;
+      const content = fs.readFileSync(logFilePath, 'utf8');
+      if (content.length > currentPosition) {
+        const newLines = content.slice(currentPosition).split('\n').filter(Boolean);
+        newLines.forEach((line) => res.write(`data: ${JSON.stringify({ line })}\n\n`));
+        currentPosition = content.length;
       }
-    } catch (err) {}
+    } catch { /* ignore */ }
   });
+
+  const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 30_000);
 
   req.on('close', () => {
     watcher.close();
-    res.end();
-  });
-
-  const heartbeat = setInterval(() => {
-    res.write(': heartbeat\n\n');
-  }, 30000);
-
-  req.on('close', () => {
     clearInterval(heartbeat);
+    res.end();
   });
 });
 
+// ─── Localtunnel ──────────────────────────────────────────────────────────────
 async function setupLocalTunnel(port) {
   if (process.env.ENABLE_LOCALTUNNEL !== 'true') return;
-
   if (!localtunnel) {
-    logger.warn(chalk.yellow('ENABLE_LOCALTUNNEL=true but localtunnel module is not installed. Please npm install localtunnel or disable localtunnel.'));
+    logger.warn('ENABLE_LOCALTUNNEL=true but localtunnel is not installed.');
     return;
   }
 
+  const s = spinner();
+  s.start('Opening localtunnel…');
   try {
     const tunnel = await localtunnel({
       port,
       subdomain: process.env.LOCALTUNNEL_SUBDOMAIN,
     });
-
-    logger.info(`Localtunnel running at ${chalk.blue.underline(tunnel.url)}`);
-    tunnel.on('close', () => logger.warn(chalk.yellow('Localtunnel connection closed')));
+    s.stop(`Localtunnel → ${pc.cyan(pc.underline(tunnel.url))}`);
+    tunnel.on('close', () => logger.warn('Localtunnel connection closed'));
 
     const shutdown = async () => {
-      logger.info(chalk.magenta.bold('Shutting down localtunnel and server'));
+      outro(pc.magenta('Shutting down'));
       tunnel.close();
       process.exit(0);
     };
-
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
   } catch (err) {
-    logger.error(`Failed to initialize localtunnel: ${chalk.red(err.message)}`);
+    s.stop('Localtunnel failed');
+    logger.error(`localtunnel: ${pc.red(err.message)}`);
   }
 }
 
+// ─── Direct Chat ──────────────────────────────────────────────────────────────
+async function startChat() {
+  const DEFAULT_MODEL = process.env.CHAT_MODEL || 'gemini-2.0-flash-lite';
+
+  // ── Pick an optional system context from a loaded job ──────────────────────
+  const jobNames = Array.from(jobs.keys());
+  let systemPrompt = '';
+
+  if (jobNames.length > 0) {
+    const choice = await select({
+      message: 'Ground chat in a job\'s instructions?',
+      options: [
+        { value: '__none__', label: pc.dim('None — free chat') },
+        ...jobNames.map((n) => ({
+          value: n,
+          label: `${pc.cyan(n)}  ${pc.dim(jobs.get(n).config.schedule)}`,
+        })),
+      ],
+    });
+
+    if (isCancel(choice)) { outro(pc.dim('Chat cancelled.')); return; }
+
+    if (choice !== '__none__') {
+      const instrPath = path.join(jobs.get(choice).jobDir, 'Instructions.md');
+      if (fs.existsSync(instrPath)) {
+        systemPrompt = fs.readFileSync(instrPath, 'utf8');
+        log.success(`Loaded instructions from ${pc.cyan(choice)}`);
+      }
+    }
+  }
+
+  note(
+    [
+      `Model  ${pc.cyan(DEFAULT_MODEL)}`,
+      `${pc.dim('/clear')}  reset history    ${pc.dim('/run <job>')}  trigger a job`,
+      `${pc.dim('/jobs')}   list jobs        ${pc.dim('Ctrl+C')}      exit chat`,
+    ].join('\n'),
+    'Chat ready'
+  );
+
+  // ── Conversation history ────────────────────────────────────────────────────
+  // Stored as plain objects; serialised into a prompt string each turn so
+  // callLLM (single-turn) gets the full context without needing refactoring.
+  const history = [];
+
+  function buildPrompt(userMessage) {
+    const parts = [];
+    if (systemPrompt) parts.push(`<system>\n${systemPrompt}\n</system>\n`);
+    history.forEach(({ role, content }) => {
+      parts.push(`${role === 'user' ? 'User' : 'Assistant'}: ${content}`);
+    });
+    parts.push(`User: ${userMessage}`);
+    parts.push('Assistant:');
+    return parts.join('\n\n');
+  }
+
+  // ── Chat loop ───────────────────────────────────────────────────────────────
+  while (true) {
+    const input = await text({
+      message: pc.cyan('›'),
+      placeholder: 'Message…',
+    });
+
+    if (isCancel(input)) break;
+
+    const message = (input ?? '').trim();
+    if (!message) continue;
+
+    // ── Slash commands ──────────────────────────────────────────────────────
+    if (message === '/clear') {
+      history.length = 0;
+      log.success('History cleared.');
+      continue;
+    }
+
+    if (message === '/jobs') {
+      if (jobs.size === 0) {
+        log.warn('No jobs loaded.');
+      } else {
+        note(
+          Array.from(jobs.entries())
+            .map(([n, j]) => `${pc.cyan(n)}  ${pc.dim(j.config.schedule)}`)
+            .join('\n'),
+          'Loaded jobs'
+        );
+      }
+      continue;
+    }
+
+    if (message.startsWith('/run ')) {
+      const jobName = message.slice(5).trim();
+      if (!jobs.has(jobName)) {
+        log.error(`Job not found: ${pc.cyan(jobName)}`);
+      } else {
+        log.step(`Triggering ${pc.cyan(jobName)}…`);
+        runJob(jobName);
+      }
+      continue;
+    }
+
+    if (message.startsWith('/')) {
+      log.warn(`Unknown command ${pc.dim(message)} — try /clear, /jobs, /run <job>`);
+      continue;
+    }
+
+    // ── LLM call ───────────────────────────────────────────────────────────
+    const s = spinner();
+    s.start('Thinking…');
+
+    let reply;
+    try {
+      reply = await callLLM(buildPrompt(message), DEFAULT_MODEL);
+    } catch (err) {
+      s.stop(pc.red('Error'));
+      log.error(err.message);
+      continue;
+    }
+
+    s.stop(pc.dim('↓'));
+
+    if (!reply) {
+      log.warn('Empty response from model.');
+      continue;
+    }
+
+    // Trim any leading "Assistant:" the model may echo back
+    const clean = reply.replace(/^Assistant:\s*/i, '').trimStart();
+
+    console.log(marked.parse(clean));
+    writeToFile('chat', `user: ${message}\nassistant: ${clean}`);
+
+    history.push({ role: 'user',      content: message });
+    history.push({ role: 'assistant', content: clean   });
+  }
+
+  outro(pc.dim('Chat ended. Server still running.'));
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
+
+intro(pc.bgCyan(pc.black(' aS ')) + pc.cyan('  async scheduler'));
+
 loadJobs(args);
 
-console.log(chalk.yellowBright.bold(`
-     e    e       d8~~\\  
-    d8b  d8b     C88b  | 
-   d888bdY88b     Y88b/  
-  / Y88Y Y888b    /Y88b  
- /   YY   Y888b  |  Y88D 
-/          Y888b  \\__8P  
-                         
-`));
+const loadedText = args.length > 0 ? args.join(', ') : 'all';
 
 app.listen(PORT, async () => {
-  logger.info(`API server running on port ${chalk.yellow.bold(PORT)}`);
+  note(
+    [
+      `${pc.dim('API')}   http://localhost:${pc.bold(PORT)}`,
+      `${pc.dim('Logs')}  http://localhost:${PORT}/logs/stream`,
+      `${pc.dim('Jobs')}  ${pc.cyan(loadedText)}`,
+    ].join('\n'),
+    'Server ready'
+  );
+
   await setupLocalTunnel(PORT);
+  await startChat();
 });
 
-const loadedJobsText = args.length > 0 ? args.join(', ') : 'all';
-logger.info(`Cron scheduler started. Loaded ${chalk.cyan.bold(loadedJobsText)} jobs from jobs/ directory.`);
-logger.info(chalk.gray.italic('Press Ctrl+C to stop.'));
+logger.step(pc.dim('Press Ctrl+C to stop.'));
+
+process.on('SIGINT', () => {
+  outro(pc.dim('Stopped.'));
+  process.exit(0);
+});

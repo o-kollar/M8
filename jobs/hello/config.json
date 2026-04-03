@@ -1,4 +1,4 @@
-{
-  "schedule": "* * * * *",
-  "model": "gemini-3.1-flash-lite-preview"
-}
+   {
+     "schedule": "* * * * *",
+     "model": "gemini-3.1-flash-lite-preview"
+   }

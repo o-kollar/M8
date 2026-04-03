@@ -1,0 +1,92 @@
+{
+  "models": [
+    {
+      "name": "gemini-3.1-flash-lite-preview",
+      "displayName": "Gemini 3.1 Flash Lite",
+      "provider": "gemini",
+      "description": "Fast and efficient Gemini model for general tasks",
+      "contextWindow": 1048576,
+      "maxTokens": 8192,
+      "pricing": {
+        "input": 0.0000005,
+        "output": 0.0000015
+      }
+    },
+    {
+      "name": "gemini-1.5-flash",
+      "displayName": "Gemini 1.5 Flash",
+      "provider": "gemini",
+      "description": "Balanced performance and speed for most applications",
+      "contextWindow": 1048576,
+      "maxTokens": 8192,
+      "pricing": {
+        "input": 0.00000035,
+        "output": 0.00000105
+      }
+    },
+    {
+      "name": "gemini-1.5-pro",
+      "displayName": "Gemini 1.5 Pro",
+      "provider": "gemini",
+      "description": "High-performance model for complex reasoning tasks",
+      "contextWindow": 2097152,
+      "maxTokens": 8192,
+      "pricing": {
+        "input": 0.0000035,
+        "output": 0.0000105
+      }
+    },
+    {
+      "name": "anthropic/claude-4.5-haiku",
+      "displayName": "Claude 4.5 Haiku",
+      "provider": "replicate",
+      "description": "Fast and capable Claude model for efficient inference",
+      "contextWindow": 200000,
+      "maxTokens": 4096,
+      "pricing": {
+        "input": 0.00000025,
+        "output": 0.00000125
+      }
+    },
+    {
+      "name": "anthropic/claude-3.5-sonnet",
+      "displayName": "Claude 3.5 Sonnet",
+      "provider": "replicate",
+      "description": "Excellent reasoning and coding capabilities",
+      "contextWindow": 200000,
+      "maxTokens": 4096,
+      "pricing": {
+        "input": 0.000003,
+        "output": 0.000015
+      }
+    },
+    {
+      "name": "meta/llama-2-70b-chat",
+      "displayName": "Llama 2 70B Chat",
+      "provider": "replicate",
+      "description": "Open-source large language model for chat applications",
+      "contextWindow": 4096,
+      "maxTokens": 2048,
+      "pricing": {
+        "input": 0.00000065,
+        "output": 0.00000275
+      }
+    }
+  ],
+  "providers": [
+    {
+      "name": "gemini",
+      "displayName": "Google Gemini",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta/models",
+      "apiKeyRequired": true,
+      "apiKeyName": "GEMINI_API_KEY"
+    },
+    {
+      "name": "replicate",
+      "displayName": "Replicate",
+      "baseUrl": "https://api.replicate.com/v1",
+      "apiKeyRequired": true,
+      "apiKeyName": "REPLICATE_API_TOKEN"
+    }
+  ]
+}

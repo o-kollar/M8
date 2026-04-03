@@ -7,11 +7,21 @@
 
 const fs = require('fs');
 const path = require('path');
+const chalk = require('chalk');
+
+// 1. Require marked and marked-terminal
+const { marked } = require('marked');
+const { markedTerminal } = require('marked-terminal');
+
+// 2. Tell marked to format the output for the terminal
+marked.use(markedTerminal());
+
 const { callLLM, callReplicate } = require(path.join(__dirname, 'lib', 'llm.js'));
 
+chalk.level = 1; 
 const jobName = process.argv[2];
 if (!jobName) {
-  console.error('Usage: node job.js <jobName>');
+  console.error(chalk.red('❌ Usage: node job.js <jobName>'));
   process.exit(1);
 }
 
@@ -21,7 +31,7 @@ const configPath = path.join(jobDir, 'config.json');
 
 // Check job folder exists
 if (!fs.existsSync(jobDir)) {
-  console.error(`Job folder not found: ${jobDir}`);
+  console.error(chalk.red(`❌ Job folder not found: ${jobDir}`));
   process.exit(1);
 }
 
@@ -34,28 +44,34 @@ if (fs.existsSync(instructionsPath)) {
 // Load config (optional, for future use)
 let config = {};
 if (fs.existsSync(configPath)) {
-  config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  try {
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch (err) {
+    console.error(chalk.red(`❌ Malformed config.json at: ${configPath}`));
+  }
 }
 
-console.log(`Running job: ${jobName}`);
-console.log(`Timestamp: ${new Date().toISOString()}`);
+console.log(chalk.blue(`🚀 Running job: ${chalk.bold(jobName)}`));
+console.log(chalk.gray(`📅 Timestamp: ${new Date().toISOString()}`));
 
 // Call LLM with instructions (if available)
 (async () => {
   if (instructions) {
-    const llmType = config.llm || 'gemini'; // Default to gemini
-    let result;
+    const modelName = config.model || 'gemini-3.1-flash-lite-preview'; // Default model
+    console.log(chalk.cyan(`🤖 Using model: ${chalk.bold(modelName)}`));
     
-    if (llmType === 'replicate') {
-      result = await callReplicate(instructions);
-    } else {
-      result = await callLLM(instructions);
-    }
+    const result = await callLLM(instructions, modelName);
     
     if (result) {
-      console.log(JSON.stringify(result, null, 2));
+      console.log(chalk.green('\n______________\n'));
+      
+      // 3. Parse and print the markdown beautifully!
+      console.log(marked.parse(result)); 
+      
+    } else {
+      console.log(chalk.yellow('⚠️  No response from LLM'));
     }
   } else {
-    console.warn('No instructions.md found for this job');
+    console.warn(chalk.yellow('⚠️  No instructions.md found for this job'));
   }
 })();

@@ -4,13 +4,19 @@
   "description": "A simple cron scheduler",
   "main": "index.js",
   "scripts": {
+    "setup": "node setup.js",
     "start": "node index.js",
     "start:local": "ENABLE_LOCALTUNNEL=true node index.js"
   },
   "dependencies": {
+    "@clack/prompts": "^1.2.0",
+    "chalk": "^4.1.2",
+    "cli-markdown": "^3.5.1",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
+    "inquirer": "^8.2.6",
     "localtunnel": "^2.0.2",
+    "marked-terminal": "^7.3.0",
     "morgan": "^1.10.0",
     "node-cron": "^3.0.3",
     "winston": "^3.8.2"

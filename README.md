@@ -1,6 +1,6 @@
 # M8
 
-A simple cron scheduler built with Node.js and node-cron that executes JavaScript files as jobs.
+A simple cron scheduler built with Node.js, node-cron, and Express. It runs folder-based jobs from `jobs/`, and supports optional LLM-driven instructions per job.
 
 ## Installation
 
@@ -9,94 +9,130 @@ A simple cron scheduler built with Node.js and node-cron that executes JavaScrip
    npm install
    ```
 
+2. Set up environment variables (interactive TUI):
+   ```bash
+   npm run setup
+   ```
+
+3. Or create a local `.env` file manually based on `.env.example`:
+   ```ini
+   PORT=3000
+   LOG_LEVEL=info
+   GEMINI_API_KEY=
+   REPLICATE_API_TOKEN=
+   ENABLE_LOCALTUNNEL=false
+   LOCALTUNNEL_SUBDOMAIN=
+   ```
+
 ## Usage
 
-Run the scheduler with all jobs:
+Run all jobs:
 ```bash
 npm start
 ```
 
-Run specific jobs by name (the name is the config file base name without `.config.json`):
+Run specific job(s) by folder name:
 ```bash
 npm start hello
 npm start job1 job2
 ```
 
-This will load the specified jobs from the `jobs/` directory and schedule them according to their config files. If no job names are provided, all jobs are loaded.
+This loads jobs from `jobs/` and schedules them as defined in each job's `config.json`.
 
 Run with localtunnel exposure (optional):
 ```bash
 npm run start:local
-# or with custom subdomain
+# or custom subdomain
 ENABLE_LOCALTUNNEL=true LOCALTUNNEL_SUBDOMAIN=myapp node index.js
 ```
 
-When `ENABLE_LOCALTUNNEL=true`, the app tries to open a public URL and logs it to `logs/app.log` and stdout.
+Stop with `Ctrl+C`.
 
-To stop, press `Ctrl+C`.
+## Job Structure
 
-## Adding Jobs
+Jobs are directory-based under `jobs/`:
 
-1. Create a JavaScript file in the `jobs/` directory (e.g., `myjob.js`).
-2. Create a corresponding config file named `myjob.config.json` in the same directory.
+- `jobs/<jobName>/config.json` (required)
+- `jobs/<jobName>/Instructions.md` (optional, for LLM calls)
 
-### Config File Format
+### `config.json`
 
-The config file should be a JSON object with:
-- `schedule`: A cron expression (e.g., `"* * * * *"` for every minute).
-- `script`: The filename of the JavaScript file to execute (e.g., `"myjob.js"`).
-
-### Example
-
-**jobs/hello.js**:
-```javascript
-console.log('Hello from the scheduled job at', new Date().toISOString());
-```
-
-**jobs/hello.config.json**:
+Typical structure:
 ```json
 {
   "schedule": "* * * * *",
-  "script": "hello.js"
+  "model": "gemini-3.1-flash-lite-preview"
 }
 ```
 
+- `schedule`: cron expression, or `false` to disable auto scheduling
+- `model`: model name from `model-catalogue.json` (e.g., `"gemini-3.1-flash-lite-preview"`, `"anthropic/claude-4.5-haiku"`)
+
+### Colored Terminal Output
+
+Job execution provides color-coded terminal output for better readability:
+- 🔵 **Blue**: General information and job status
+- 🟢 **Green**: Successful results and responses
+- 🟡 **Yellow**: Warnings and missing files
+- 🔴 **Red**: Errors and failures
+- ⚪ **White/Gray**: Content and timestamps
+
+### `Instructions.md`
+
+- Text passed to the LLM when the job runs.
+- Provide clear prompt wording, desired output format, and context data references.
+
 ## API
 
-The scheduler also provides an HTTP API for managing jobs.
+`index.js` provides a REST API for job control.
 
 ### Endpoints
 
-- **GET /jobs**: List all loaded jobs with their schedules and scripts.
-- **GET /jobs/:name**: Get details of a specific job, including script content.
-- **POST /run/:jobname**: Trigger a specific job to run immediately.
-- **POST /jobs**: Create a new job (body: {name, schedule, script, scriptContent}).
-- **PUT /jobs/:name**: Update an existing job (body: {schedule, script, scriptContent}).
+- `GET /jobs` — list loaded jobs and schedules
+- `GET /jobs/:name` — job details
+- `POST /run/:jobname` — run job immediately
+- `POST /jobs` — create job payload + config (if implemented)
+- `PUT /jobs/:name` — update job config (if implemented)
 
-### Examples
+### Example
 
-List jobs:
-```bash
-curl http://localhost:3000/jobs
-```
-
-Run a job:
+Trigger immediate run:
 ```bash
 curl -X POST http://localhost:3000/run/hello
 ```
 
-## GUI
+## LLM Support
 
-A simple web-based GUI is available at `http://localhost:3000` (or your configured port). It allows you to:
-- Load and view all jobs
-- Run jobs manually with a click
-- Add new jobs by filling out the form
-- Edit existing jobs by clicking "Edit" and updating the form
+`lib/llm.js` exposes:
+- `callLLM(text)` → Gemini
+- `callReplicate(prompt)` → Replicate
 
-The GUI interacts with the API to create, update, and manage jobs dynamically.
+API keys are read from `.env`:
+- `GEMINI_API_KEY`
+- `REPLICATE_API_TOKEN`
 
-Refer to [node-cron documentation](https://www.npmjs.com/package/node-cron) for cron expression syntax.
+If missing, LLM call is skipped but app continues.
 
-## Customization
+## Logging
 
-You can modify `index.js` to add more features, such as reloading jobs dynamically or handling job dependencies.
+Uses Winston + morgan.
+- Log path: `logs/app.log`
+- `LOG_LEVEL` from env (`info` default)
+
+## Contributing
+
+- Add a new job folder in `jobs/`.
+- Ensure `config.json` follows the format above.
+- Add `Instructions.md` for LLM-enabled jobs.
+- Test with `npm start <jobName>` and/or `curl` to call API.
+
+## Useful Links
+
+- [node-cron](https://www.npmjs.com/package/node-cron)
+- [Express](https://www.npmjs.com/package/express)
+- [winston](https://www.npmjs.com/package/winston)
+- [localtunnel](https://www.npmjs.com/package/localtunnel)
+
+---
+
+For more guidance, see `.github/instructions/m8.instructions.md`.

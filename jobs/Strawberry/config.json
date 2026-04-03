@@ -1,0 +1,4 @@
+{
+  "schedule": "* * * * *",
+  "llm": "anthropic/claude-4.5-haiku"
+}

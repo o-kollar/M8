@@ -4,906 +4,208 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>M8 Cron Scheduler</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root {
-            --bg: #0a0c10;
-            --surface: #111318;
-            --surface2: #181c24;
-            --border: #1f2430;
-            --accent: #00e5a0;
-            --accent2: #0090ff;
-            --danger: #ff4b6e;
-            --warn: #f5a623;
-            --text: #e8eaf0;
-            --muted: #4a5068;
-            --muted2: #6b7490;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'Syne', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        /* Grid background */
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background-image:
-                linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
-            background-size: 40px 40px;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        .wrapper {
-            position: relative;
-            z-index: 1;
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 40px 24px;
-        }
-
-        /* ── HEADER ── */
-        header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 48px;
-            padding-bottom: 24px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
-
-        .logo-icon {
-            width: 44px;
-            height: 44px;
-            background: var(--accent);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--bg);
-            font-size: 1.2em;
-            flex-shrink: 0;
-        }
-
-        .logo-text h1 {
-            font-size: 1.4em;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            color: var(--text);
-            line-height: 1;
-        }
-
-        .logo-text span {
-            font-family: 'Space Mono', monospace;
-            font-size: 0.72em;
-            color: var(--muted2);
-        }
-
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .status-pill {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 99px;
-            padding: 6px 14px;
-            font-family: 'Space Mono', monospace;
-            font-size: 0.75em;
-            color: var(--muted2);
-        }
-
-        .status-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: var(--accent);
-            box-shadow: 0 0 8px var(--accent);
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-
-        /* ── LAYOUT ── */
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 420px;
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        @media (max-width: 1050px) {
-            .grid { grid-template-columns: 1fr; }
-        }
-
-        /* ── PANEL ── */
-        .panel {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            overflow: hidden;
-        }
-
-        .panel-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 18px 22px;
-            border-bottom: 1px solid var(--border);
-            background: var(--surface2);
-        }
-
-        .panel-title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.9em;
-            font-weight: 600;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            color: var(--muted2);
-        }
-
-        .panel-title i {
-            color: var(--accent);
-            font-size: 0.95em;
-        }
-
-        .panel-body {
-            padding: 22px;
-        }
-
-        /* ── BUTTONS ── */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 7px;
-            padding: 9px 18px;
-            border: none;
-            border-radius: 8px;
-            font-family: 'Syne', sans-serif;
-            font-size: 0.85em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            white-space: nowrap;
-        }
-
-        .btn-accent {
-            background: var(--accent);
-            color: var(--bg);
-        }
-        .btn-accent:hover {
-            background: #00ffb3;
-            box-shadow: 0 0 20px rgba(0,229,160,0.3);
-            transform: translateY(-1px);
-        }
-
-        .btn-ghost {
-            background: transparent;
-            color: var(--muted2);
-            border: 1px solid var(--border);
-        }
-        .btn-ghost:hover {
-            border-color: var(--muted2);
-            color: var(--text);
-            transform: translateY(-1px);
-        }
-
-        .btn-blue {
-            background: rgba(0,144,255,0.12);
-            color: var(--accent2);
-            border: 1px solid rgba(0,144,255,0.2);
-        }
-        .btn-blue:hover {
-            background: rgba(0,144,255,0.2);
-            box-shadow: 0 0 12px rgba(0,144,255,0.2);
-        }
-
-        .btn-danger {
-            background: rgba(255,75,110,0.08);
-            color: var(--danger);
-            border: 1px solid rgba(255,75,110,0.15);
-        }
-        .btn-danger:hover {
-            background: rgba(255,75,110,0.15);
-        }
-
-        .btn-sm {
-            padding: 6px 12px;
-            font-size: 0.78em;
-        }
-
-        /* ── JOB CARDS ── */
-        #jobs-list {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .job-card {
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 16px 18px;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            transition: border-color 0.2s, transform 0.2s;
-            animation: slideIn 0.3s ease both;
-        }
-
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        .job-card:hover {
-            border-color: rgba(0,229,160,0.2);
-            transform: translateX(3px);
-        }
-
-        .job-indicator {
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            background: rgba(0,229,160,0.1);
-            border: 1px solid rgba(0,229,160,0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--accent);
-            font-size: 0.85em;
-            flex-shrink: 0;
-        }
-
-        .job-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .job-name {
-            font-size: 0.95em;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .job-meta {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .job-badge {
-            font-family: 'Space Mono', monospace;
-            font-size: 0.7em;
-            color: var(--muted2);
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 5px;
-            padding: 2px 8px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .job-badge i {
-            font-size: 0.85em;
-        }
-
-        .job-actions {
-            display: flex;
-            gap: 6px;
-            flex-shrink: 0;
-        }
-
-        /* ── FORM ── */
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-label {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            font-size: 0.78em;
-            font-weight: 600;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            color: var(--muted2);
-            margin-bottom: 7px;
-        }
-
-        .form-label i {
-            color: var(--accent);
-        }
-
-        .form-input, .form-textarea {
-            width: 100%;
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px 14px;
-            color: var(--text);
-            font-family: 'Space Mono', monospace;
-            font-size: 0.85em;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            outline: none;
-        }
-
-        .form-input:focus, .form-textarea:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(0,229,160,0.08);
-        }
-
-        .form-input::placeholder, .form-textarea::placeholder {
-            color: var(--muted);
-        }
-
-        .form-textarea {
-            resize: vertical;
-            min-height: 180px;
-            line-height: 1.6;
-        }
-
-        .form-hint {
-            font-family: 'Space Mono', monospace;
-            font-size: 0.7em;
-            color: var(--muted);
-            margin-top: 5px;
-        }
-
-        .form-actions {
-            display: flex;
-            gap: 8px;
-            padding-top: 4px;
-        }
-
-        /* ── CONSOLE ── */
-        .console-panel {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            overflow: hidden;
-        }
-
-        .console-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 18px;
-            background: var(--surface2);
-            border-bottom: 1px solid var(--border);
-        }
-
-        .console-dots {
-            display: flex;
-            gap: 6px;
-        }
-
-        .dot {
-            width: 11px;
-            height: 11px;
-            border-radius: 50%;
-        }
-        .dot-red   { background: #ff5f57; }
-        .dot-yellow{ background: #febc2e; }
-        .dot-green { background: #28c840; }
-
-        .console-label {
-            font-family: 'Space Mono', monospace;
-            font-size: 0.72em;
-            color: var(--muted);
-        }
-
-        #output {
-            padding: 16px 20px;
-            height: 220px;
-            overflow-y: auto;
-            font-family: 'Space Mono', monospace;
-            font-size: 0.78em;
-            line-height: 1.7;
-            scrollbar-width: thin;
-            scrollbar-color: var(--border) transparent;
-        }
-
-        #output::-webkit-scrollbar { width: 4px; }
-        #output::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-        .log-line {
-            display: flex;
-            gap: 12px;
-            padding: 2px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.03);
-            animation: fadeIn 0.2s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to   { opacity: 1; }
-        }
-
-        .log-time {
-            color: var(--muted);
-            flex-shrink: 0;
-        }
-
-        .log-msg { color: var(--muted2); }
-        .log-msg.success { color: var(--accent); }
-        .log-msg.error   { color: var(--danger); }
-        .log-msg.info    { color: var(--accent2); }
-        .log-msg.warn    { color: var(--warn); }
-
-        #output:empty::after {
-            content: '> Waiting for events...';
-            color: var(--muted);
-        }
-
-        /* ── EMPTY STATE ── */
-        .empty-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 48px 20px;
-            text-align: center;
-            gap: 12px;
-        }
-
-        .empty-state-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 14px;
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.4em;
-            color: var(--muted);
-            margin-bottom: 4px;
-        }
-
-        .empty-state h3 {
-            font-size: 1em;
-            font-weight: 600;
-            color: var(--muted2);
-        }
-
-        .empty-state p {
-            font-size: 0.82em;
-            color: var(--muted);
-            max-width: 200px;
-        }
-
-        /* ── DIVIDER ── */
-        .divider {
-            height: 1px;
-            background: var(--border);
-            margin: 18px 0;
-        }
-
-        /* ── LOGS PANEL ── */
-        .logs-panel {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-            animation: slideUp 0.3s ease;
-        }
-
-        @keyframes slideUp {
-            from { transform: translateY(20px); opacity: 0; }
-            to   { transform: translateY(0); opacity: 1; }
-        }
-
-        #logs-content::-webkit-scrollbar { width: 6px; }
-        #logs-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-        /* responsive */
-        @media (max-width: 640px) {
-            header { flex-direction: column; align-items: flex-start; gap: 12px; }
-            .job-card { flex-wrap: wrap; }
-            .job-actions { width: 100%; justify-content: flex-end; }
-            #logs-modal { padding: 20px; }
-        }
+        body { background-color: #0f172a; color: #e2e8f0; font-family: ui-sans-serif, system-ui, sans-serif; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .terminal { font-family: 'Fira Code', monospace; background: #000; color: #10b981; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
     </style>
 </head>
-<body>
-<div class="wrapper">
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+                🚀 M8 Scheduler
+            </h1>
+            <button onclick="showModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold transition shadow-lg shadow-blue-900/20">
+                + Create Job
+            </button>
+        </header>
 
-    <!-- HEADER -->
-    <header>
-        <div class="logo">
-            <div class="logo-icon"><i class="fas fa-bolt"></i></div>
-            <div class="logo-text">
-                <h1>M8 Cron</h1>
-                <span>Job Scheduler v1.0</span>
-            </div>
-        </div>
-        <div class="header-right">
-            <div class="status-pill">
-                <div class="status-dot"></div>
-                scheduler active
-            </div>
-        </div>
-    </header>
-
-    <!-- MAIN GRID -->
-    <div class="grid">
-
-        <!-- JOBS PANEL -->
-        <div class="panel">
-            <div class="panel-header">
-                <div class="panel-title">
-                    <i class="fas fa-layer-group"></i>
-                    Scheduled Jobs
-                </div>
-                <button class="btn btn-accent btn-sm" onclick="loadJobs()">
-                    <i class="fas fa-arrows-rotate"></i> Refresh
-                </button>
-            </div>
-            <div class="panel-body">
-                <ul id="jobs-list"></ul>
-                <div id="empty-jobs" class="empty-state">
-                    <div class="empty-state-icon"><i class="fas fa-inbox"></i></div>
-                    <h3>No jobs yet</h3>
-                    <p>Create your first job using the form on the right.</p>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Job List -->
+            <div class="lg:col-span-1 glass rounded-xl p-6 h-fit">
+                <h2 class="text-xl font-semibold mb-4 border-b border-slate-700 pb-2 flex items-center">
+                    <span class="mr-2 text-blue-400">●</span> Active Jobs
+                </h2>
+                <div id="jobList" class="space-y-3">
+                    <!-- Jobs injected here -->
                 </div>
             </div>
-        </div>
 
-        <!-- FORM PANEL -->
-        <div class="panel">
-            <div class="panel-header">
-                <div class="panel-title">
-                    <i class="fas fa-pen-to-square"></i>
-                    <span id="form-panel-title">New Job</span>
-                </div>
-            </div>
-            <div class="panel-body">
-                <div class="form-group">
-                    <div class="form-label"><i class="fas fa-tag"></i> Job Name</div>
-                    <input class="form-input" id="job-name" placeholder="e.g., daily-backup" />
-                </div>
-
-                <div class="form-group">
-                    <div class="form-label"><i class="fas fa-clock"></i> Cron Expression</div>
-                    <input class="form-input" id="job-schedule" placeholder="* * * * *" />
-                    <div class="form-hint">min · hour · day · month · weekday</div>
-                </div>
-                
-                <div class="form-group">
-                    <div class="form-label"><i class="fas fa-brain"></i> LLM Provider</div>
-                    <select class="form-input" id="job-llm">
-                        <option value="gemini">Gemini (Google)</option>
-                        <option value="replicate">Replicate (Claude)</option>
-                    </select>
-                    <div class="form-hint">Choose which LLM to use for job execution</div>
-                </div>
-                
-                <div class="form-group">
-                    <div class="form-label"><i class="fas fa-book"></i> Instructions (Instructions.md)</div>
-                    <textarea class="form-textarea" id="job-instructions-content" placeholder="# Describe job behavior, config, etc."></textarea>
-                    <div class="form-hint">This content will be saved to Instructions.md and passed to the global job runner</div>
-                </div>
-                <div class="form-actions">
-                    <button class="btn btn-accent" onclick="saveJob()">
-                        <i class="fas fa-floppy-disk"></i>
-                        <span id="save-btn-text">Save Job</span>
-                    </button>
-                    <button class="btn btn-ghost" onclick="clearForm()">
-                        <i class="fas fa-xmark"></i> Clear
-                    </button>
+            <!-- Live Logs -->
+            <div class="lg:col-span-2 flex flex-col gap-4">
+                <div class="glass rounded-xl p-4 flex-grow">
+                    <div class="flex justify-between items-center mb-2">
+                        <h2 class="text-xl font-semibold flex items-center">
+                            <span class="mr-2 text-emerald-400">●</span> Live System Logs
+                        </h2>
+                        <button onclick="clearLogs()" class="text-xs text-slate-400 hover:text-white uppercase tracking-wider transition">Clear</button>
+                    </div>
+                    <div id="terminal" class="terminal p-4 rounded-lg h-[600px] overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap shadow-inner border border-slate-800"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- CONSOLE -->
-    <div class="console-panel">
-        <div class="console-header">
-            <div class="console-dots">
-                <div class="dot dot-red"></div>
-                <div class="dot dot-yellow"></div>
-                <div class="dot dot-green"></div>
-            </div>
-            <div class="console-label">output console</div>
-            <div style="display: flex; gap: 8px;">
-                <button class="btn btn-ghost btn-sm" onclick="viewFullLogs()">
-                    <i class="fas fa-file-lines"></i> View Logs
-                </button>
-                <button class="btn btn-ghost btn-sm" onclick="clearConsole()">
-                    <i class="fas fa-trash-can"></i> Clear
-                </button>
-            </div>
-        </div>
-        <div id="output"></div>
-    </div>
-
-    <!-- LOGS VIEWER -->
-    <div id="logs-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; backdrop-filter: blur(4px); padding: 40px;" onclick="closeLogs(event)">
-        <div class="logs-panel" onclick="event.stopPropagation()" style="position: static; top: auto; left: auto; right: auto; bottom: auto; width: 100%; height: 100%;">
-            <div class="console-header">
-                <div class="console-dots">
-                    <div class="dot dot-red"></div>
-                    <div class="dot dot-yellow"></div>
-                    <div class="dot dot-green"></div>
+    <!-- Create/Edit Modal -->
+    <div id="modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+        <div class="glass max-w-lg w-full rounded-2xl p-8 shadow-2xl">
+            <h2 id="modalTitle" class="text-2xl font-bold mb-6">Create New Job</h2>
+            <form id="jobForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-slate-300">Job Name</label>
+                    <input type="text" id="jobName" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
-                <div class="console-label">app.log</div>
-                <button class="btn btn-ghost btn-sm" onclick="closeLogs()">
-                    <i class="fas fa-times"></i> Close
-                </button>
-            </div>
-            <div id="logs-content" style="padding: 16px 20px; height: calc(100% - 56px); overflow-y: auto; font-family: 'Space Mono', monospace; font-size: 0.76em; line-height: 1.6; color: var(--muted2); scrollbar-width: thin; scrollbar-color: var(--border) transparent;"></div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-slate-300">Cron Schedule</label>
+                    <input type="text" id="jobSchedule" required placeholder="0 0 * * *" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-slate-300">Model Name</label>
+                    <input type="text" id="jobModel" value="gemini-3.1-flash-lite-preview" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-slate-300">Instructions (Markdown)</label>
+                    <textarea id="jobInstructions" rows="6" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"></textarea>
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="hideModal()" class="flex-1 px-4 py-2 border border-slate-600 rounded-lg hover:bg-slate-800 transition">Cancel</button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-500 font-bold transition">Save Job</button>
+                </div>
+            </form>
         </div>
     </div>
 
-</div>
+    <script>
+        let isEditing = false;
 
-<script>
-    let editingJobName = null;
-
-    async function loadJobs() {
-        try {
-            const response = await fetch('/jobs');
-            const jobs = await response.json();
-            renderJobs(jobs);
-            log(`Loaded ${jobs.length} job${jobs.length !== 1 ? 's' : ''}`, 'success');
-        } catch (e) {
-            log('Failed to load jobs: ' + e.message, 'error');
-        }
-    }
-
-    function renderJobs(jobs) {
-        const list = document.getElementById('jobs-list');
-        const empty = document.getElementById('empty-jobs');
-        list.innerHTML = '';
-
-        if (!jobs.length) {
-            empty.style.display = 'flex';
-            return;
-        }
-        empty.style.display = 'none';
-
-        jobs.forEach((job, i) => {
-            const li = document.createElement('li');
-            li.className = 'job-card';
-            li.style.animationDelay = `${i * 0.05}s`;
-            li.innerHTML = `
-                <div class="job-indicator"><i class="fas fa-circle-notch"></i></div>
-                <div class="job-info">
-                    <div class="job-name">${job.name}</div>
-                    <div class="job-meta">
-                        <span class="job-badge"><i class="fas fa-clock"></i>${job.schedule}</span>
-                        <span class="job-badge"><i class="fas fa-file"></i>${job.script}</span>
+        async function fetchJobs() {
+            const res = await fetch('/jobs');
+            const jobs = await res.json();
+            const container = document.getElementById('jobList');
+            container.innerHTML = jobs.map(job => `
+                <div class="p-4 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-blue-500 transition group">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="font-bold text-blue-300">${job.name}</h3>
+                        <span class="text-[10px] bg-slate-700 px-2 py-0.5 rounded uppercase text-slate-300">${job.llm}</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-4 font-mono tracking-tighter">${job.schedule}</p>
+                    <div class="flex gap-2">
+                        <button onclick="runJob('${job.name}')" class="text-xs bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white px-3 py-1 rounded transition">Run Now</button>
+                        <button onclick="editJob('${job.name}')" class="text-xs bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-3 py-1 rounded transition">Edit</button>
                     </div>
                 </div>
-                <div class="job-actions">
-                    <button class="btn btn-accent btn-sm" onclick="runJob('${job.name}')">
-                        <i class="fas fa-play"></i>
-                    </button>
-                    <button class="btn btn-blue btn-sm" onclick="editJob('${job.name}')">
-                        <i class="fas fa-pen"></i>
-                    </button>
-                </div>
-            `;
-            list.appendChild(li);
-        });
-    }
-
-    async function runJob(name) {
-        log(`Running job: ${name}...`, 'info');
-        try {
-            const r = await fetch(`/run/${name}`, { method: 'POST' });
-            const data = await r.json();
-            r.ok ? log(data.message, 'success') : log(data.error, 'error');
-        } catch (e) {
-            log('Run failed: ' + e.message, 'error');
+            `).join('');
         }
-    }
 
-    async function editJob(name) {
-        try {
-            const r = await fetch(`/jobs/${name}`);
-            const data = await r.json();
-            if (r.ok) {
-                document.getElementById('job-name').value = data.name;
-                document.getElementById('job-schedule').value = data.schedule;
-                document.getElementById('job-llm').value = data.llm || 'gemini';
-                document.getElementById('job-instructions-content').value = data.instructions || '';
-                editingJobName = name;
-                document.getElementById('save-btn-text').textContent = 'Update Job';
-                document.getElementById('form-panel-title').textContent = 'Edit Job';
-                document.getElementById('job-form-section')?.scrollIntoView({ behavior: 'smooth' });
-                log(`Editing: ${name}`, 'info');
-            } else {
-                log(data.error, 'error');
+        async function runJob(name) {
+            const res = await fetch(`/run/${name}`, { method: 'POST' });
+            const data = await res.json();
+            console.log(`Triggered ${name}:`, data);
+        }
+
+        async function editJob(name) {
+            const res = await fetch(`/jobs/${name}`);
+            const job = await res.json();
+            document.getElementById('jobName').value = job.name;
+            document.getElementById('jobName').disabled = true;
+            document.getElementById('jobSchedule').value = job.schedule;
+            document.getElementById('jobModel').value = job.llm;
+            document.getElementById('jobInstructions').value = job.instructions;
+            
+            isEditing = true;
+            document.getElementById('modalTitle').innerText = 'Edit Job';
+            showModal();
+        }
+
+        function showModal() {
+            if (!isEditing) {
+                document.getElementById('jobForm').reset();
+                document.getElementById('jobName').disabled = false;
+                document.getElementById('modalTitle').innerText = 'Create New Job';
             }
-        } catch (e) {
-            log('Load failed: ' + e.message, 'error');
-        }
-    }
-
-    async function saveJob() {
-        const name = document.getElementById('job-name').value.trim();
-        const schedule = document.getElementById('job-schedule').value.trim();
-        const llm = document.getElementById('job-llm').value;
-        const instructionsContent = document.getElementById('job-instructions-content').value.trim();
-
-        if (!name || !schedule) {
-            log('Name and schedule are required', 'warn');
-            return;
+            document.getElementById('modal').classList.remove('hidden');
         }
 
-        const method = editingJobName ? 'PUT' : 'POST';
-        const url = editingJobName ? `/jobs/${editingJobName}` : '/jobs';
-        const body = editingJobName ? { schedule, llm, instructionsContent } : { name, schedule, llm, instructionsContent };
+        function hideModal() {
+            document.getElementById('modal').classList.add('hidden');
+            isEditing = false;
+        }
 
-        try {
-            const r = await fetch(url, {
+        document.getElementById('jobForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('jobName').value;
+            const payload = {
+                name,
+                schedule: document.getElementById('jobSchedule').value,
+                llm: document.getElementById('jobModel').value,
+                instructionsContent: document.getElementById('jobInstructions').value
+            };
+
+            const method = isEditing ? 'PUT' : 'POST';
+            const url = isEditing ? `/jobs/${name}` : '/jobs';
+
+            const res = await fetch(url, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+                body: JSON.stringify(payload)
             });
-            const data = await r.json();
-            if (r.ok) {
-                log(`${editingJobName ? 'Updated' : 'Created'} job: ${name}`, 'success');
-                clearForm();
-                loadJobs();
+
+            if (res.ok) {
+                hideModal();
+                fetchJobs();
             } else {
-                log(data.error, 'error');
+                const err = await res.json();
+                alert(err.error);
             }
-        } catch (e) {
-            log('Save failed: ' + e.message, 'error');
-        }
-    }
+        };
 
-    function clearForm() {
-        ['job-name','job-schedule','job-llm','job-instructions-content'].forEach(id => {
-            document.getElementById(id).value = '';
-        });
-        editingJobName = null;
-        document.getElementById('save-btn-text').textContent = 'Save Job';
-        document.getElementById('form-panel-title').textContent = 'New Job';
-        log('Form cleared', 'info');
-    }
+        function initLogStream() {
+            const terminal = document.getElementById('terminal');
+            const eventSource = new EventSource('/logs/stream');
 
-    function clearConsole() {
-        document.getElementById('output').innerHTML = '';
-    }
-
-    async function viewFullLogs() {
-        const modal = document.getElementById('logs-modal');
-        const content = document.getElementById('logs-content');
-        modal.style.display = 'flex';
-        content.innerHTML = '<div style="color: var(--muted);">Loading logs...</div>';
-        
-        try {
-            const response = await fetch('/logs');
-            const data = await response.json();
-            const logs = data.logs || 'No logs available.';
-            
-            // Split logs into lines and format them
-            const lines = logs.split('\n').filter(line => line.trim());
-            content.innerHTML = lines.map(line => {
-                let className = '';
-                if (line.includes('[ERROR]')) className = 'log-msg error';
-                else if (line.includes('[WARN]')) className = 'log-msg warn';
-                else if (line.includes('[INFO]')) className = 'log-msg info';
-                else if (line.includes('[DEBUG]')) className = 'log-msg';
-                else className = 'log-msg success';
-                
-                return `<div class="${className}">${escapeHtml(line)}</div>`;
-            }).join('');
-            
-            // Auto-scroll to bottom
-            content.scrollTop = content.scrollHeight;
-        } catch (e) {
-            content.innerHTML = `<div class="log-msg error">Failed to load logs: ${escapeHtml(e.message)}</div>`;
-        }
-    }
-
-    function closeLogs(event) {
-        if (event && event.target.id !== 'logs-modal') return;
-        document.getElementById('logs-modal').style.display = 'none';
-    }
-
-    function escapeHtml(text) {
-        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-        return text.replace(/[&<>"']/g, m => map[m]);
-    }
-
-    function log(msg, type = '') {
-        const out = document.getElementById('output');
-        const line = document.createElement('div');
-        line.className = 'log-line';
-        const timestamp = new Date().toISOString();
-        const logMsg = `${timestamp} [${type.toUpperCase()}] ${msg}`;
-        line.innerHTML = `<span class="log-msg ${type}">${escapeHtml(logMsg)}</span>`;
-        out.appendChild(line);
-        out.scrollTop = out.scrollHeight;
-    }
-
-    window.addEventListener('load', () => {
-        log('M8 Cron Scheduler initialized', 'success');
-        loadJobs();
-        connectLogStream();
-    });
-
-    function connectLogStream() {
-        const eventSource = new EventSource('/logs/stream');
-        
-        eventSource.onmessage = (event) => {
-            try {
+            eventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
-                if (data.line) {
-                    displayLogLine(data.line);
-                }
-            } catch (e) {
-                // Ignore parse errors (heartbeat)
-            }
+                const line = document.createElement('div');
+                line.className = 'py-0.5 border-b border-white/5 font-mono';
+                
+                // Simple ANSI color parsing for the terminal UI
+                let text = data.line
+                    .replace(/\[32m/g, '<span class="text-emerald-400">')
+                    .replace(/\[31m/g, '<span class="text-red-400">')
+                    .replace(/\[34m/g, '<span class="text-blue-400">')
+                    .replace(/\[33m/g, '<span class="text-yellow-400">')
+                    .replace(/\[36m/g, '<span class="text-cyan-400">')
+                    .replace(/\[39m|\[0m/g, '</span>');
+
+                line.innerHTML = `<span class="text-slate-600 mr-2">$</span>${text}`;
+                terminal.appendChild(line);
+                terminal.scrollTop = terminal.scrollHeight;
+            };
+
+            eventSource.onerror = () => {
+                console.warn("Log stream disconnected. Reconnecting...");
+            };
+        }
+
+        function clearLogs() {
+            document.getElementById('terminal').innerHTML = '';
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') hideModal();
+        });
+
+        document.getElementById('modal').onclick = (e) => {
+            if (e.target.id === 'modal') hideModal();
         };
 
-        eventSource.onerror = () => {
-            eventSource.close();
-            // Attempt to reconnect after 5 seconds
-            setTimeout(() => {
-                log('Reconnecting to log stream...', 'warn');
-                connectLogStream();
-            }, 5000);
-        };
-    }
-
-    function displayLogLine(line) {
-        const out = document.getElementById('output');
-        const logLine = document.createElement('div');
-        logLine.className = 'log-line';
-        
-        let msgClass = '';
-        if (line.includes('[ERROR]')) msgClass = 'error';
-        else if (line.includes('[WARN]')) msgClass = 'warn';
-        else if (line.includes('[INFO]')) msgClass = 'info';
-        else if (line.includes('[DEBUG]')) msgClass = '';
-        else msgClass = 'success';
-        
-        logLine.innerHTML = `<span class="log-msg ${msgClass}">${escapeHtml(line)}</span>`;
-        out.appendChild(logLine);
-        out.scrollTop = out.scrollHeight;
-    }
-</script>
+        fetchJobs();
+        initLogStream();
+    </script>
 </body>
 </html>
